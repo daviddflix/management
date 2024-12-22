@@ -1,0 +1,187 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# Virtual Environment
+venv/
+env/
+ENV/
+.env
+.env.*
+!.env.example
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+.project
+.pydevproject
+.settings/
+
+# Logs and databases
+*.log
+*.sqlite3
+*.db
+logs/
+log/
+postgres-data/
+
+# Testing and Coverage
+.coverage
+htmlcov/
+.tox/
+.pytest_cache/
+coverage.xml
+*.cover
+.hypothesis/
+test-results/
+pytest-results/
+
+# Application specific
+uploads/
+media/
+static/
+*.pid
+celerybeat-schedule
+*.rdb
+redis-data/
+
+# AI and ML
+.openai_cache/
+.model_cache/
+.vector_store/
+embeddings/
+
+# Monitoring and metrics
+prometheus/
+grafana/
+prometheus_data/
+grafana_data/
+
+# Documentation
+docs/_build/
+site/
+api-docs/
+
+# Cache
+.cache/
+.parcel-cache/
+.npm
+.eslintcache
+__pycache__/
+.mypy_cache/
+.ruff_cache/
+
+# Local development
+*.local
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+local_settings.py
+
+# Docker
+.docker/
+docker-compose.override.yml
+docker-compose.local.yml
+
+# Secrets
+*.pem
+*.key
+*.crt
+*.csr
+secrets/
+.secrets/
+credentials/
+
+# Temporary files
+*.tmp
+*.temp
+.temp/
+tmp/
+
+# System Files
+.DS_Store
+Thumbs.db
+
+# FastAPI specific
+.fastapi_cache/
+
+# Monday.com specific
+.monday_cache/
+monday_credentials.json
+
+# Slack specific
+.slack_cache/
+slack_credentials.json
+
+# Database
+*.sqlite
+*.sqlite3
+*.db
+*.sql
+postgres_data/
+mysql_data/
+
+# Alembic
+alembic.ini.local
+versions/
+alembic/__pycache__/
+
+# Service specific
+.redis/
+redis_data/
+.prometheus/
+.grafana/
+
+# Logs
+logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.pnpm-debug.log*
+error.log
+access.log
+debug.log
+
+# Editor directories and files
+.idea/
+.vscode/
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+.vs/
+*.sublime-workspace
+*.sublime-project
+
+# OS generated files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db 
