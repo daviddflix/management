@@ -211,7 +211,13 @@ source venv/bin/activate
 pip install -r requirements.txt
 ```
 
-3. **Set up environment variables**
+3. **Install package in development mode**
+```bash
+# This ensures Python can find the app module
+pip install -e .
+```
+
+4. **Set up environment variables**
 ```bash
 # Copy example env file
 cp .env.example .env
@@ -225,13 +231,13 @@ REDIS_URL=redis://localhost:6379
 DATABASE_URL=postgresql://user:password@localhost:5432/dbname
 ```
 
-4. **Initialize database**
+5. **Initialize database**
 ```bash
 # Apply migrations
 alembic upgrade head
 ```
 
-5. **Start the application**
+6. **Start the application**
 ```bash
 # Development server
 uvicorn app.main:app --reload --host 0.0.0.0 --port 8000

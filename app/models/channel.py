@@ -2,13 +2,9 @@ from datetime import datetime
 from typing import List, Optional
 from pydantic import BaseModel, Field, ConfigDict
 
+from app.models.database.channel import ChannelType
 from app.models.user import UserResponse
 from app.models.team import TeamResponse
-
-class ChannelType(str):
-    PUBLIC = "public"
-    PRIVATE = "private"
-    DIRECT = "direct"
 
 class ChannelMember(BaseModel):
     model_config = ConfigDict(from_attributes=True)

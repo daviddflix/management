@@ -1,12 +1,12 @@
 from fastapi import APIRouter, HTTPException, Depends, Query, status
 from typing import List, Optional
 from datetime import datetime
-from app.models.team import Team, TeamCreate, TeamUpdate, TeamType
+from app.models.team import TeamResponse, TeamCreate, TeamUpdate, TeamType
 from app.services.monday_service import MondayService
 from app.services.slack_service import SlackService
 from app.core.config import settings
 from app.core.security import get_current_user, check_permissions
-from app.models.user import User
+from app.models.database.user import DBUser
 from app.core.deps import get_monday_service, get_slack_service
 import re
 
@@ -26,12 +26,12 @@ def validate_team_name(name: str) -> bool:
         return False
     return True
 
-@router.get("/", response_model=List[Team])
+@router.get("/", response_model=List[TeamResponse])
 async def get_teams(
     type: Optional[TeamType] = None,
     active_only: bool = True,
     monday_service: MondayService = Depends(get_monday_service),
-    current_user: User = Depends(get_current_user)
+    current_user: DBUser = Depends(get_current_user)
 ):
     """Get all teams with optional filtering"""
     try:
@@ -51,12 +51,12 @@ async def get_teams(
             detail=f"Failed to fetch teams: {str(e)}"
         )
 
-@router.post("/", response_model=Team)
+@router.post("/", response_model=TeamResponse)
 async def create_team(
     team: TeamCreate,
     monday_service: MondayService = Depends(get_monday_service),
     slack_service: SlackService = Depends(get_slack_service),
-    current_user: User = Depends(check_permissions(["admin", "tech_lead"]))
+    current_user: DBUser = Depends(check_permissions(["admin", "tech_lead"]))
 ):
     """Create a new team (requires admin or tech lead role)"""
     try:
@@ -129,11 +129,11 @@ async def create_team(
             detail=f"Failed to create team: {str(e)}"
         )
 
-@router.get("/{team_id}", response_model=Team)
+@router.get("/{team_id}", response_model=TeamResponse)
 async def get_team(
     team_id: str,
     monday_service: MondayService = Depends(get_monday_service),
-    current_user: User = Depends(get_current_user)
+    current_user: DBUser = Depends(get_current_user)
 ):
     """Get a specific team by ID"""
     try:
@@ -160,13 +160,13 @@ async def get_team(
             detail=f"Failed to fetch team: {str(e)}"
         )
 
-@router.put("/{team_id}", response_model=Team)
+@router.put("/{team_id}", response_model=TeamResponse)
 async def update_team(
     team_id: str,
     team_update: TeamUpdate,
     monday_service: MondayService = Depends(get_monday_service),
     slack_service: SlackService = Depends(get_slack_service),
-    current_user: User = Depends(get_current_user)
+    current_user: DBUser = Depends(get_current_user)
 ):
     """Update a team"""
     try:
@@ -238,7 +238,7 @@ async def update_team(
 async def get_team_members(
     team_id: str,
     monday_service: MondayService = Depends(get_monday_service),
-    current_user: User = Depends(get_current_user)
+    current_user: DBUser = Depends(get_current_user)
 ):
     """Get all members of a team"""
     try:
@@ -272,7 +272,7 @@ async def add_team_member(
     user_id: str,
     monday_service: MondayService = Depends(get_monday_service),
     slack_service: SlackService = Depends(get_slack_service),
-    current_user: User = Depends(get_current_user)
+    current_user: DBUser = Depends(get_current_user)
 ):
     """Add a member to a team"""
     try:
@@ -336,7 +336,7 @@ async def remove_team_member(
     user_id: str,
     monday_service: MondayService = Depends(get_monday_service),
     slack_service: SlackService = Depends(get_slack_service),
-    current_user: User = Depends(get_current_user)
+    current_user: DBUser = Depends(get_current_user)
 ):
     """Remove a member from a team"""
     try:

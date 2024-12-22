@@ -4,13 +4,14 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 import logging
 from prometheus_client import make_asgi_app
-import aioredis
+import redis
 
 from app.core.config import settings
 from app.core.database import init_db
 from app.api.endpoints import (
-    tasks, sprints, reports, teams, users, auth, metrics,
-    channels, messages, notifications, boards
+    auth_router, users_router, teams_router,
+    tasks_router, sprints_router, messages_router,
+    notifications_router, boards_router
 )
 from app.services.scheduler_service import scheduler_service
 from app.services.monday_service import monday_service
@@ -22,19 +23,18 @@ from app.services.websocket_service import (
 
 logger = logging.getLogger(__name__)
 
-async def init_redis() -> aioredis.Redis:
+def init_redis() -> redis.Redis:
     """Initialize Redis connection."""
     try:
-        redis = aioredis.from_url(
+        redis_client = redis.from_url(
             settings.REDIS_URL,
-            encoding="utf-8",
             decode_responses=True,
             max_connections=settings.REDIS_MAX_CONNECTIONS
         )
         # Test connection
-        await redis.ping()
+        redis_client.ping()
         logger.info("Redis connection established")
-        return redis
+        return redis_client
     except Exception as e:
         logger.error(f"Failed to initialize Redis: {str(e)}")
         raise
@@ -49,7 +49,7 @@ async def lifespan(app: FastAPI):
 
         # Initialize Redis
         logger.info("Initializing Redis...")
-        app.state.redis = await init_redis()
+        app.state.redis = init_redis()
 
         # Start scheduler
         logger.info("Starting scheduler service...")
@@ -69,16 +69,15 @@ async def lifespan(app: FastAPI):
         # Cleanup
         logger.info("Shutting down services...")
         if hasattr(app.state, "redis"):
-            await app.state.redis.close()
+            app.state.redis.close()
         await scheduler_service.shutdown()
         logger.info("Shutdown complete")
 
 def create_application() -> FastAPI:
     """Create and configure the FastAPI application."""
     app = FastAPI(
-        title=settings.PROJECT_NAME,
-        description=settings.PROJECT_DESCRIPTION,
-        version=settings.VERSION,
+        title=settings.APP_NAME,
+        version=settings.APP_VERSION,
         lifespan=lifespan,
         docs_url="/api/docs",
         redoc_url="/api/redoc",
@@ -99,17 +98,14 @@ def create_application() -> FastAPI:
     app.mount("/metrics", metrics_app)
 
     # Include routers
-    app.include_router(auth.router, prefix="/api/auth", tags=["Authentication"])
-    app.include_router(users.router, prefix="/api/users", tags=["Users"])
-    app.include_router(teams.router, prefix="/api/teams", tags=["Teams"])
-    app.include_router(tasks.router, prefix="/api/tasks", tags=["Tasks"])
-    app.include_router(sprints.router, prefix="/api/sprints", tags=["Sprints"])
-    app.include_router(boards.router, prefix="/api/boards", tags=["Boards"])
-    app.include_router(channels.router, prefix="/api/channels", tags=["Channels"])
-    app.include_router(messages.router, prefix="/api/messages", tags=["Messages"])
-    app.include_router(notifications.router, prefix="/api/notifications", tags=["Notifications"])
-    app.include_router(reports.router, prefix="/api/reports", tags=["Reports"])
-    app.include_router(metrics.router, prefix="/api/metrics", tags=["Metrics"])
+    app.include_router(auth_router, prefix="/api/auth", tags=["Authentication"])
+    app.include_router(users_router, prefix="/api/users", tags=["Users"])
+    app.include_router(teams_router, prefix="/api/teams", tags=["Teams"])
+    app.include_router(tasks_router, prefix="/api/tasks", tags=["Tasks"])
+    app.include_router(sprints_router, prefix="/api/sprints", tags=["Sprints"])
+    app.include_router(boards_router, prefix="/api/boards", tags=["Boards"])
+    app.include_router(messages_router, prefix="/api/messages", tags=["Messages"])
+    app.include_router(notifications_router, prefix="/api/notifications", tags=["Notifications"])
 
     return app
 

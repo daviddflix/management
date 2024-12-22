@@ -1,12 +1,13 @@
 from datetime import datetime
 from typing import List, Optional
 from pydantic import BaseModel, Field, ConfigDict
+from enum import Enum
 
 from app.models.user import UserResponse
 from app.models.task import TaskResponse
 from app.models.team import TeamResponse
 
-class BoardVisibility(str):
+class BoardVisibility(str, Enum):
     PUBLIC = "public"
     PRIVATE = "private"
     TEAM = "team"
@@ -17,23 +18,23 @@ class BoardBase(BaseModel):
     visibility: BoardVisibility = Field(default=BoardVisibility.PRIVATE, description="Visibility level of the board")
 
 class BoardCreate(BoardBase):
-    team_id: Optional[int] = Field(None, description="Optional team ID to associate the board with")
+    team_id: Optional[str] = Field(None, description="Optional team ID to associate the board with")
 
 class BoardUpdate(BaseModel):
     name: Optional[str] = Field(None, min_length=1, max_length=100)
     description: Optional[str] = None
     visibility: Optional[BoardVisibility] = None
-    team_id: Optional[int] = None
+    team_id: Optional[str] = None
 
 class BoardMemberUpdate(BaseModel):
-    user_ids: List[int] = Field(..., description="List of user IDs to be added as members")
+    user_ids: List[str] = Field(..., description="List of user IDs to be added as members")
 
-class BoardResponse(BaseModel):
-    model_config = {"from_attributes": True}
+class BoardResponse(BoardBase):
+    model_config = ConfigDict(from_attributes=True)
 
-    id: int
-    owner_id: int
-    team_id: Optional[int] = None
+    id: str
+    owner_id: str
+    team_id: Optional[str] = None
     created_at: datetime
     updated_at: Optional[datetime] = None
     
@@ -43,11 +44,11 @@ class BoardResponse(BaseModel):
     team: Optional[TeamResponse] = None
 
 class BoardSummary(BaseModel):
-    model_config = {"from_attributes": True}
+    model_config = ConfigDict(from_attributes=True)
 
-    id: int
+    id: str
     name: str
-    owner_id: int
+    owner_id: str
     visibility: BoardVisibility
     task_count: int = Field(0, description="Number of tasks in the board")
     member_count: int = Field(0, description="Number of members in the board")

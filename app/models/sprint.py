@@ -2,47 +2,14 @@ from pydantic import BaseModel, Field
 from typing import List, Optional, Dict
 from datetime import datetime
 from enum import Enum
-from sqlalchemy import Column, String, DateTime, Enum as SQLAlchemyEnum, Integer, JSON, ForeignKey, ARRAY
-from sqlalchemy.orm import relationship
-from app.core.database import Base
 
 class SprintStatus(str, Enum):
     PLANNING = "planning"
     ACTIVE = "active"
     COMPLETED = "completed"
     CANCELLED = "cancelled"
+    IN_PROGRESS = "in_progress"
 
-# SQLAlchemy Model
-class Sprint(Base):
-    __tablename__ = "sprints"
-
-    id = Column(String, primary_key=True)
-    name = Column(String(100), nullable=False)
-    team_id = Column(String, ForeignKey("teams.id"), nullable=False)
-    start_date = Column(DateTime, nullable=False)
-    end_date = Column(DateTime, nullable=False)
-    status = Column(SQLAlchemyEnum(SprintStatus), default=SprintStatus.PLANNING)
-    goals = Column(ARRAY(String), default=[])
-    monday_sprint_id = Column(String, nullable=True)
-    created_at = Column(DateTime, default=datetime.utcnow)
-    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
-    planned_tasks = Column(ARRAY(String), default=[])
-    completed_tasks = Column(ARRAY(String), default=[])
-    metrics = Column(JSON, default={})
-    retrospective = Column(JSON, default={
-        "what_went_well": [],
-        "what_needs_improvement": [],
-        "action_items": []
-    })
-    daily_standups = Column(JSON, default=[])
-    blockers = Column(JSON, default=[])
-    team_members = Column(ARRAY(String), default=[])
-
-    # Relationships
-    team = relationship("Team", back_populates="sprints")
-    tasks = relationship("Task", back_populates="sprint")
-
-# Pydantic Models (keep existing ones)
 class SprintMetrics(BaseModel):
     planned_points: int = 0
     completed_points: int = 0
@@ -75,7 +42,7 @@ class SprintUpdate(BaseModel):
     goals: Optional[List[str]] = None
     planned_tasks: Optional[List[str]] = None
 
-class Sprint(SprintBase):
+class SprintResponse(SprintBase):
     id: str
     status: SprintStatus = SprintStatus.PLANNING
     created_at: datetime

@@ -1,189 +1,179 @@
 from fastapi import APIRouter, HTTPException, Depends, Query, status
 from typing import List, Optional
-from app.models.task import Task, TaskCreate, TaskUpdate, TaskStatus
-from app.services.monday_service import MondayService
-from app.core.config import settings
+from datetime import datetime
+from sqlalchemy import select, func, or_
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from app.models.task import TaskCreate, TaskUpdate, TaskResponse
+from app.models.database.task import Task
+from app.models.database.user import DBUser
+from app.models.database.team import Team
 from app.core.security import get_current_user, check_permissions
-from app.models.user import User
-from app.core.deps import get_monday_service, get_openai_service
-from app.services.redis_service import RedisService
-from app.core.deps import get_redis_service
+from app.core.deps import get_db
 
 router = APIRouter()
 
-@router.get("/", response_model=List[Task])
+@router.get("/", response_model=List[TaskResponse])
 async def get_tasks(
-    status: Optional[TaskStatus] = None,
-    assignee: Optional[str] = None,
-    sprint_id: Optional[str] = None,
-    monday_service: MondayService = Depends(get_monday_service),
-    current_user: User = Depends(get_current_user)
+    db: AsyncSession = Depends(get_db),
+    current_user: DBUser = Depends(get_current_user),
+    team_id: Optional[str] = None,
+    assignee_id: Optional[str] = None,
+    status: Optional[str] = None,
+    priority: Optional[str] = None,
+    skip: int = Query(0, ge=0),
+    limit: int = Query(10, ge=1, le=100)
 ):
-    """
-    Get all tasks with optional filtering
-    """
+    """Get all tasks with optional filtering."""
     try:
-        tasks = await monday_service.get_tasks(
-            status=status,
-            assignee=assignee,
-            sprint_id=sprint_id
-        )
-        return tasks
+        query = select(Task)
+        
+        # Apply filters
+        if team_id:
+            query = query.filter(Task.team_id == team_id)
+        if assignee_id:
+            query = query.filter(Task.assignee_id == assignee_id)
+        if status:
+            query = query.filter(Task.status == status)
+        if priority:
+            query = query.filter(Task.priority == priority)
+            
+        # Add user-specific filters
+        if not current_user.is_admin:
+            query = query.filter(
+                or_(
+                    Task.team_id.in_([t.id for t in current_user.teams]),
+                    Task.assignee_id == current_user.id,
+                    Task.creator_id == current_user.id
+                )
+            )
+            
+        total = await db.scalar(select(func.count()).select_from(query.subquery()))
+        
+        query = query.offset(skip).limit(limit)
+        result = await db.execute(query)
+        tasks = result.scalars().all()
+        
+        return [TaskResponse.model_validate(task) for task in tasks]
     except Exception as e:
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to fetch tasks: {str(e)}"
-        )
+        raise HTTPException(status_code=500, detail=str(e))
 
-@router.post("/", response_model=Task)
+@router.post("/", response_model=TaskResponse)
 async def create_task(
     task: TaskCreate,
-    monday_service: MondayService = Depends(get_monday_service),
-    current_user: User = Depends(get_current_user)
+    db: AsyncSession = Depends(get_db),
+    current_user: DBUser = Depends(get_current_user)
 ):
-    """Create a new task (requires authentication)"""
+    """Create a new task."""
     try:
-        # Validate task data
-        if task.story_points and task.story_points < 0:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Story points cannot be negative"
-            )
-            
-        if task.sprint_id:
-            sprint = await monday_service.get_sprint(task.sprint_id)
-            if not sprint:
+        # Validate team membership if team_id is provided
+        if task.team_id:
+            team = await db.get(Team, task.team_id)
+            if not team:
+                raise HTTPException(status_code=404, detail="Team not found")
+            if not current_user.is_admin and current_user.id not in [m.id for m in team.members]:
                 raise HTTPException(
-                    status_code=status.HTTP_404_NOT_FOUND,
-                    detail="Sprint not found"
+                    status_code=403,
+                    detail="You must be a team member to create a task for this team"
                 )
 
-        task.created_by = current_user.id
-        created_task = await monday_service.create_task(task)
-        return created_task
+        db_task = Task(
+            **task.model_dump(),
+            creator_id=current_user.id,
+            created_at=datetime.utcnow()
+        )
+        
+        db.add(db_task)
+        await db.commit()
+        await db.refresh(db_task)
+        
+        return TaskResponse.model_validate(db_task)
     except HTTPException as he:
         raise he
     except Exception as e:
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to create task: {str(e)}"
-        )
+        await db.rollback()
+        raise HTTPException(status_code=500, detail=str(e))
 
-@router.get("/{task_id}", response_model=Task)
+@router.get("/{task_id}", response_model=TaskResponse)
 async def get_task(
     task_id: str,
-    monday_service: MondayService = Depends(get_monday_service),
-    current_user: User = Depends(get_current_user)
+    db: AsyncSession = Depends(get_db),
+    current_user: DBUser = Depends(get_current_user)
 ):
-    """
-    Get a specific task by ID
-    """
+    """Get a specific task by ID."""
     try:
-        task = await monday_service.get_task(task_id)
+        task = await db.get(Task, task_id)
         if not task:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="Task not found"
-            )
+            raise HTTPException(status_code=404, detail="Task not found")
             
         # Check permissions
-        if not current_user.is_admin and task.created_by != current_user.id:
-            if not any(team.id == task.team_id for team in current_user.teams):
-                raise HTTPException(
-                    status_code=status.HTTP_403_FORBIDDEN,
-                    detail="Not authorized to view this task"
-                )
-                
-        return task
+        if not current_user.is_admin:
+            if task.team_id and current_user.id not in [m.id for m in task.team.members]:
+                if task.assignee_id != current_user.id and task.creator_id != current_user.id:
+                    raise HTTPException(status_code=403, detail="Not authorized to view this task")
+            
+        return TaskResponse.model_validate(task)
     except HTTPException as he:
         raise he
     except Exception as e:
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to fetch task: {str(e)}"
-        )
+        raise HTTPException(status_code=500, detail=str(e))
 
-@router.put("/{task_id}", response_model=Task)
+@router.put("/{task_id}", response_model=TaskResponse)
 async def update_task(
     task_id: str,
     task_update: TaskUpdate,
-    monday_service: MondayService = Depends(get_monday_service),
-    current_user: User = Depends(get_current_user)
+    db: AsyncSession = Depends(get_db),
+    current_user: DBUser = Depends(check_permissions(["admin", "tech_lead"]))
 ):
-    """
-    Update a task
-    """
+    """Update a task (requires admin or tech lead role)."""
     try:
-        # Get existing task
-        existing_task = await monday_service.get_task(task_id)
-        if not existing_task:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="Task not found"
-            )
+        task = await db.get(Task, task_id)
+        if not task:
+            raise HTTPException(status_code=404, detail="Task not found")
             
         # Check permissions
-        if not current_user.is_admin and existing_task.created_by != current_user.id:
-            if not any(team.id == existing_task.team_id for team in current_user.teams):
-                raise HTTPException(
-                    status_code=status.HTTP_403_FORBIDDEN,
-                    detail="Not authorized to update this task"
-                )
+        if not current_user.is_admin:
+            if task.team_id and current_user.id not in [m.id for m in task.team.members]:
+                raise HTTPException(status_code=403, detail="Not authorized to update this task")
 
-        # Validate status transition
-        if task_update.status:
-            valid_transitions = {
-                TaskStatus.TODO: [TaskStatus.IN_PROGRESS],
-                TaskStatus.IN_PROGRESS: [TaskStatus.REVIEW, TaskStatus.DONE],
-                TaskStatus.REVIEW: [TaskStatus.IN_PROGRESS, TaskStatus.DONE],
-                TaskStatus.DONE: [TaskStatus.IN_PROGRESS]
-            }
+        # Update fields
+        for field, value in task_update.dict(exclude_unset=True).items():
+            setattr(task, field, value)
             
-            if (existing_task.status != task_update.status and 
-                task_update.status not in valid_transitions.get(existing_task.status, [])):
-                raise HTTPException(
-                    status_code=status.HTTP_400_BAD_REQUEST,
-                    detail=f"Invalid status transition from {existing_task.status} to {task_update.status}"
-                )
-
-        updated_task = await monday_service.update_task(task_id, task_update)
-        return updated_task
+        task.updated_at = datetime.utcnow()
+        
+        await db.commit()
+        await db.refresh(task)
+        
+        return TaskResponse.model_validate(task)
     except HTTPException as he:
         raise he
     except Exception as e:
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to update task: {str(e)}"
-        )
+        await db.rollback()
+        raise HTTPException(status_code=500, detail=str(e))
 
 @router.delete("/{task_id}")
 async def delete_task(
     task_id: str,
-    monday_service: MondayService = Depends(get_monday_service),
-    current_user: User = Depends(check_permissions(["admin", "tech_lead"]))
+    db: AsyncSession = Depends(get_db),
+    current_user: DBUser = Depends(check_permissions(["admin", "tech_lead"]))
 ):
     """Delete a task (requires admin or tech lead role)"""
     try:
         # Get existing task
-        existing_task = await monday_service.get_task(task_id)
+        existing_task = await db.get(Task, task_id)
         if not existing_task:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail="Task not found"
             )
             
-        success = await monday_service.delete_task(task_id)
-        if not success:
-            raise HTTPException(
-                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail="Failed to delete task"
-            )
+        await db.delete(existing_task)
+        await db.commit()
             
         return {"message": "Task deleted successfully"}
     except HTTPException as he:
         raise he
     except Exception as e:
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to delete task: {str(e)}"
-        )
+        await db.rollback()
+        raise HTTPException(status_code=500, detail=str(e))

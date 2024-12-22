@@ -2,9 +2,6 @@ from pydantic import BaseModel, Field, EmailStr
 from typing import List, Optional
 from datetime import datetime
 from enum import Enum
-from sqlalchemy import Column, String, DateTime, Enum as SQLAlchemyEnum, ARRAY
-from sqlalchemy.orm import relationship
-from app.core.database import Base
 
 class UserRole(str, Enum):
     DEVELOPER = "developer"
@@ -25,32 +22,7 @@ class UserSkill(str, Enum):
     FULLSTACK = "fullstack"
     UI_UX = "ui_ux"
     QA = "qa"
-    TEAM_LEAD = "team_lead"
 
-# SQLAlchemy Model
-class User(Base):
-    __tablename__ = "users"
-
-    id = Column(String, primary_key=True)
-    name = Column(String(100), nullable=False)
-    email = Column(String, unique=True, nullable=False)
-    hashed_password = Column(String, nullable=False)
-    role = Column(SQLAlchemyEnum(UserRole), nullable=False)
-    status = Column(SQLAlchemyEnum(UserStatus), default=UserStatus.ACTIVE)
-    skills = Column(ARRAY(String), default=[])
-    monday_user_id = Column(String, nullable=True)
-    slack_user_id = Column(String, nullable=True)
-    team_id = Column(String, nullable=False)
-    current_sprint_id = Column(String, nullable=True)
-    assigned_tasks = Column(ARRAY(String), default=[])
-    completed_tasks = Column(ARRAY(String), default=[])
-    created_at = Column(DateTime, default=datetime.utcnow)
-    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
-
-    # Relationship with notifications
-    notifications = relationship("Notification", back_populates="user")
-
-# Pydantic Models (API Schemas)
 class UserBase(BaseModel):
     name: str = Field(..., min_length=1, max_length=100)
     email: EmailStr
@@ -78,6 +50,14 @@ class UserResponse(UserBase):
     current_sprint_id: Optional[str] = None
     assigned_tasks: List[str] = []
     completed_tasks: List[str] = []
+    is_active: bool = True
 
     class Config:
         from_attributes = True
+
+class UserInDB(UserResponse):
+    hashed_password: str
+
+    class Config:
+        from_attributes = True
+

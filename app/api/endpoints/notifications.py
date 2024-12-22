@@ -2,22 +2,23 @@ from typing import List
 from fastapi import APIRouter, Depends, WebSocket, WebSocketDisconnect, HTTPException
 from sqlalchemy.orm import Session
 
-from app.core.deps import get_db, get_current_user
+from app.core.deps import get_db
+from app.core.security import get_current_user
 from app.models.notification import NotificationCreate, NotificationResponse
 from app.services.notification_service import NotificationService
-from app.services.websocket_service import manager
+from app.services.websocket_service import notification_manager
 
 router = APIRouter()
 
 @router.websocket("/ws/{user_id}")
 async def websocket_endpoint(websocket: WebSocket, user_id: int):
-    await manager.connect(websocket, user_id)
+    await notification_manager.connect_user(websocket, user_id)
     try:
         while True:
             # Wait for any message from the client
             data = await websocket.receive_text()
     except WebSocketDisconnect:
-        manager.disconnect(websocket, user_id)
+        notification_manager.disconnect_user(websocket, user_id)
 
 @router.post("/", response_model=NotificationResponse)
 async def create_notification(
@@ -28,7 +29,7 @@ async def create_notification(
     db_notification = service.create_notification(notification)
     
     # Send real-time notification through WebSocket
-    await manager.send_personal_notification(
+    await notification_manager.send_notification(
         notification.user_id,
         {
             "id": db_notification.id,

@@ -1,25 +1,24 @@
-from sqlalchemy import Column, String, DateTime, Float, Integer, ForeignKey, JSON
+from sqlalchemy import Column, String, DateTime, ForeignKey, JSON, Float, Integer
 from sqlalchemy.orm import relationship
 from datetime import datetime
 from app.core.database import Base
 
-class DBSprintMetrics(Base):
+class SprintMetrics(Base):
     __tablename__ = "sprint_metrics"
 
     id = Column(String, primary_key=True)
-    sprint_id = Column(String, ForeignKey("sprints.id"), nullable=False)
-    velocity = Column(Float, nullable=False, default=0.0)
-    completion_rate = Column(Float, nullable=False, default=0.0)
-    quality_score = Column(Float, nullable=False, default=0.0)
-    team_satisfaction = Column(Float, nullable=False, default=0.0)
-    burndown_data = Column(JSON, default={})  # Store daily progress
-    created_at = Column(DateTime, default=datetime.now())
-    updated_at = Column(DateTime, default=datetime.now(), onupdate=datetime.now())
+    sprint_id = Column(String, ForeignKey("sprints.id"))
+    velocity = Column(JSON)
+    burndown = Column(JSON)
+    task_distribution = Column(JSON)
+    member_contribution = Column(JSON)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
     # Relationships
-    sprint = relationship("DBSprint", back_populates="metrics")
+    sprint = relationship("Sprint", back_populates="metrics")
 
-class DBTeamMetrics(Base):
+class TeamMetrics(Base):
     __tablename__ = "team_metrics"
 
     id = Column(String, primary_key=True)
@@ -33,7 +32,7 @@ class DBTeamMetrics(Base):
     updated_at = Column(DateTime, default=datetime.now(), onupdate=datetime.now())
 
     # Relationships
-    team = relationship("DBTeam", back_populates="metrics")
+    team = relationship("Team", back_populates="metrics")
 
 class DBTaskMetrics(Base):
     __tablename__ = "task_metrics"

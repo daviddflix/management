@@ -1,16 +1,17 @@
 from passlib.context import CryptContext
 from datetime import datetime, timedelta, timezone
-from typing import Optional, Union, Dict
+from typing import Optional, Union, Dict, Any
 from jose import JWTError, jwt
 from fastapi import Depends, HTTPException, status, Request
 from fastapi.security import OAuth2PasswordBearer
+from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.config import settings
-from app.models.user import User
+from app.models.user import UserResponse
+from app.models.database.user import DBUser
 from app.services.monday_service import MondayService
-import aioredis
-import logging
-
-logger = logging.getLogger(__name__)
+from app.core.deps import get_db
+import redis
+from app.core.logging import app_logger as logger
 
 # Password hashing context
 pwd_context = CryptContext(
@@ -26,7 +27,7 @@ oauth2_scheme = OAuth2PasswordBearer(
 )
 
 # Redis client for token blacklist
-redis_client = aioredis.from_url(settings.REDIS_URL)
+redis_client = redis.from_url(settings.REDIS_URL)
 
 def verify_password(plain_password: str, hashed_password: str) -> bool:
     """Verify a password against its hash."""
@@ -80,8 +81,9 @@ async def verify_token(token: str, token_type: str) -> Optional[Dict[str, any]]:
 
 async def get_current_user(
     request: Request,
+    db: AsyncSession = Depends(get_db),
     token: str = Depends(oauth2_scheme)
-) -> User:
+) -> DBUser:
     """Get the current authenticated user."""
     credentials_exception = HTTPException(
         status_code=status.HTTP_401_UNAUTHORIZED,
@@ -98,7 +100,7 @@ async def get_current_user(
         raise credentials_exception
 
     try:
-        user = await MondayService(settings.MONDAY_API_KEY).get_user(user_id)
+        user = await db.get(DBUser, user_id)
         if not user or not user.is_active:
             raise credentials_exception
         return user
@@ -108,11 +110,13 @@ async def get_current_user(
 
 def check_permissions(required_roles: list[str]):
     """Check if user has required roles."""
-    async def permission_checker(current_user: User = Depends(get_current_user)):
-        if current_user.role not in required_roles:
+    async def permission_checker(current_user: DBUser = Depends(get_current_user)) -> DBUser:
+        if not current_user.is_active:
+            raise HTTPException(status_code=400, detail="Inactive user")
+        if current_user.role not in required_roles and "admin" not in required_roles:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
-                detail="Not enough permissions"
+                detail="The user doesn't have enough privileges"
             )
         return current_user
     return permission_checker

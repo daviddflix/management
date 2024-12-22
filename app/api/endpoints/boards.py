@@ -3,21 +3,18 @@ from typing import List, Optional
 from datetime import datetime
 from sqlalchemy import select, func, or_
 from sqlalchemy.orm import selectinload
-from enum import Enum
 
-from app.models.board import Board, BoardCreate, BoardUpdate, BoardResponse, BoardSummary
-from app.models.user import User, UserResponse
-from app.models.team import Team
-from app.models.activity import Activity
+from app.models.board import BoardCreate, BoardUpdate, BoardResponse, BoardSummary, BoardVisibility
+from app.models.user import UserResponse
+from app.models.database.board import Board
+from app.models.database.user import DBUser
+from app.models.database.team import Team
+from app.models.database.activity import Activity
+from app.models.activity import ActivityType
 from app.core.security import get_current_user, check_permissions
 from app.core.deps import get_db, get_redis_service
 from app.services.redis_service import RedisService
 from sqlalchemy.ext.asyncio import AsyncSession
-
-class BoardVisibility(str, Enum):
-    PUBLIC = "public"
-    PRIVATE = "private"
-    TEAM = "team"
 
 router = APIRouter()
 
@@ -25,7 +22,7 @@ router = APIRouter()
 async def get_boards(
     db: AsyncSession = Depends(get_db),
     redis: RedisService = Depends(get_redis_service),
-    current_user: User = Depends(get_current_user),
+    current_user: DBUser = Depends(get_current_user),
     team_id: Optional[str] = None,
     visibility: Optional[BoardVisibility] = None,
     skip: int = Query(0, ge=0),
@@ -86,7 +83,7 @@ async def get_boards(
 async def create_board(
     board: BoardCreate,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    current_user: DBUser = Depends(get_current_user)
 ):
     """Create a new board."""
     try:
@@ -127,9 +124,8 @@ async def create_board(
         activity = Activity(
             board_id=db_board.id,
             user_id=current_user.id,
-            action="created",
-            details="Board created",
-            created_at=datetime.now()
+            action=ActivityType.CREATED,
+            details="Board created"
         )
         db.add(activity)
         
@@ -148,7 +144,7 @@ async def get_board(
     board_id: int = Path(..., description="The ID of the board to get"),
     db: AsyncSession = Depends(get_db),
     redis: RedisService = Depends(get_redis_service),
-    current_user: User = Depends(get_current_user)
+    current_user: DBUser = Depends(get_current_user)
 ):
     """Get a specific board by ID."""
     try:
@@ -187,7 +183,7 @@ async def update_board(
     board_update: BoardUpdate,
     db: AsyncSession = Depends(get_db),
     redis: RedisService = Depends(get_redis_service),
-    current_user: User = Depends(get_current_user)
+    current_user: DBUser = Depends(get_current_user)
 ):
     """Update a board."""
     try:
@@ -224,7 +220,7 @@ async def delete_board(
     board_id: int,
     db: AsyncSession = Depends(get_db),
     redis: RedisService = Depends(get_redis_service),
-    current_user: User = Depends(check_permissions(["admin", "tech_lead"]))
+    current_user: DBUser = Depends(check_permissions(["admin", "tech_lead"]))
 ):
     """Delete a board (requires admin or tech lead role)."""
     try:
@@ -252,10 +248,10 @@ async def delete_board(
 
 @router.post("/{board_id}/members", response_model=List[UserResponse])
 async def add_board_members(
-    board_id: int,
-    member_ids: List[int],
+    board_id: str,
+    member_ids: List[str],
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    current_user: DBUser = Depends(get_current_user)
 ):
     """Add members to a board."""
     try:
@@ -268,7 +264,7 @@ async def add_board_members(
             raise HTTPException(status_code=403, detail="Not authorized to add members to this board")
 
         # Get users
-        users = await db.execute(select(User).where(User.id.in_(member_ids)))
+        users = await db.execute(select(DBUser).where(DBUser.id.in_(member_ids)))
         users = users.scalars().all()
         
         # Add members
@@ -277,7 +273,7 @@ async def add_board_members(
         await db.commit()
         await db.refresh(board)
         
-        return [UserResponse.from_orm(member) for member in board.members]
+        return users
     except HTTPException as he:
         raise he
     except Exception as e:
@@ -286,10 +282,10 @@ async def add_board_members(
 
 @router.delete("/{board_id}/members/{user_id}")
 async def remove_board_member(
-    board_id: int,
-    user_id: int,
+    board_id: str,
+    user_id: str,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    current_user: DBUser = Depends(get_current_user)
 ):
     """Remove a member from a board."""
     try:
@@ -317,7 +313,7 @@ async def remove_board_member(
 async def get_board_activity(
     board_id: int,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: DBUser = Depends(get_current_user),
     skip: int = Query(0, ge=0),
     limit: int = Query(50, ge=1, le=100)
 ):

@@ -5,7 +5,7 @@ from uuid import UUID
 from datetime import datetime, timedelta, timezone
 from app.core.config import settings
 from app.models.auth import SessionData
-import aioredis
+import redis
 import logging
 import json
 from typing import Optional
@@ -13,7 +13,7 @@ from typing import Optional
 logger = logging.getLogger(__name__)
 
 # Redis client for session storage
-redis_client = aioredis.from_url(
+redis_client = redis.from_url(
     settings.REDIS_URL,
     max_connections=settings.REDIS_MAX_CONNECTIONS,
     decode_responses=True

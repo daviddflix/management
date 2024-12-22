@@ -2,7 +2,7 @@ from fastapi import APIRouter, HTTPException, Depends, Query, status
 from typing import List, Optional
 from datetime import datetime
 from email_validator import validate_email, EmailNotValidError
-from app.models.user import User, UserCreate, UserUpdate, UserRole, UserStatus
+from app.models.user import UserResponse, UserCreate, UserUpdate, UserRole, UserStatus
 from app.services.monday_service import MondayService
 from app.core.config import settings
 from app.core.security import get_password_hash, verify_password, get_current_user, check_permissions
@@ -32,13 +32,13 @@ def validate_password(password: str) -> bool:
         return False
     return True
 
-@router.get("/", response_model=List[User])
+@router.get("/", response_model=List[UserResponse])
 async def get_users(
     role: Optional[UserRole] = None,
     status: Optional[UserStatus] = None,
     team_id: Optional[str] = None,
     monday_service: MondayService = Depends(get_monday_service),
-    current_user: User = Depends(check_permissions(["admin", "tech_lead"]))
+    current_user: UserResponse = Depends(check_permissions(["admin", "tech_lead"]))
 ):
     """Get all users with optional filtering (requires admin or tech lead role)"""
     try:
@@ -50,11 +50,11 @@ async def get_users(
             detail=f"Failed to fetch users: {str(e)}"
         )
 
-@router.post("/", response_model=User)
+@router.post("/", response_model=UserResponse)
 async def create_user(
     user: UserCreate,
     monday_service: MondayService = Depends(get_monday_service),
-    current_user: User = Depends(check_permissions(["admin"]))
+    current_user: UserResponse = Depends(check_permissions(["admin"]))
 ):
     """Create a new user (requires admin role)"""
     try:
@@ -103,11 +103,11 @@ async def create_user(
             detail=f"Failed to create user: {str(e)}"
         )
 
-@router.get("/{user_id}", response_model=User)
+@router.get("/{user_id}", response_model=UserResponse)
 async def get_user(
     user_id: str,
     monday_service: MondayService = Depends(get_monday_service),
-    current_user: User = Depends(get_current_user)
+    current_user: UserResponse = Depends(get_current_user)
 ):
     """Get a specific user by ID"""
     try:
@@ -135,12 +135,12 @@ async def get_user(
             detail=f"Failed to fetch user: {str(e)}"
         )
 
-@router.put("/{user_id}", response_model=User)
+@router.put("/{user_id}", response_model=UserResponse)
 async def update_user(
     user_id: str,
     user_update: UserUpdate,
     monday_service: MondayService = Depends(get_monday_service),
-    current_user: User = Depends(get_current_user)
+    current_user: UserResponse = Depends(get_current_user)
 ):
     """Update a user"""
     try:
@@ -215,7 +215,7 @@ async def get_user_tasks(
     status: Optional[str] = None,
     sprint_id: Optional[str] = None,
     monday_service: MondayService = Depends(get_monday_service),
-    current_user: User = Depends(get_current_user)
+    current_user: UserResponse = Depends(get_current_user)
 ):
     """Get all tasks assigned to a user"""
     try:
@@ -245,7 +245,7 @@ async def update_user_status(
     user_id: str,
     status: UserStatus,
     monday_service: MondayService = Depends(get_monday_service),
-    current_user: User = Depends(check_permissions(["admin", "tech_lead"]))
+    current_user: UserResponse = Depends(check_permissions(["admin", "tech_lead"]))
 ):
     """Update user status (active/inactive/on_leave) (requires admin or tech lead role)"""
     try:
@@ -275,7 +275,7 @@ async def get_user_performance(
         regex="^(last_sprint|last_month|last_quarter|last_year)$"
     ),
     monday_service: MondayService = Depends(get_monday_service),
-    current_user: User = Depends(get_current_user)
+    current_user: UserResponse = Depends(get_current_user)
 ):
     """Get user performance metrics"""
     try:

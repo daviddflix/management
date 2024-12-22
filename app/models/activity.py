@@ -1,6 +1,6 @@
 from datetime import datetime
 from typing import Optional
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, ConfigDict
 from enum import Enum
 
 class ActivityType(str, Enum):
@@ -15,8 +15,8 @@ class ActivityType(str, Enum):
     VISIBILITY_CHANGED = "visibility_changed"
 
 class ActivityBase(BaseModel):
-    board_id: int = Field(..., description="ID of the board this activity belongs to")
-    user_id: int = Field(..., description="ID of the user who performed the action")
+    board_id: str = Field(..., description="ID of the board this activity belongs to")
+    user_id: str = Field(..., description="ID of the user who performed the action")
     action: ActivityType = Field(..., description="Type of action performed")
     details: str = Field(..., description="Additional details about the activity")
 
@@ -27,9 +27,9 @@ class ActivityUpdate(BaseModel):
     details: Optional[str] = None
 
 class ActivityResponse(ActivityBase):
-    model_config = {"from_attributes": True}
-    
-    id: int
+    model_config = ConfigDict(from_attributes=True)
+
+    id: str
     created_at: datetime
     board_name: str
     user_name: str

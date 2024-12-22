@@ -3,14 +3,13 @@ from fastapi.security import OAuth2PasswordRequestForm
 from typing import Optional
 from datetime import datetime, timedelta
 from app.models.auth import Token, LoginRequest, RefreshTokenRequest
-from app.models.user import User, UserCreate
+from app.models.user import UserResponse, UserCreate
 from app.core.security import (
     create_access_token,
     create_refresh_token,
     verify_password,
     get_current_user,
-    verify_refresh_token,
-    get_password_hash
+    verify_token,
 )
 from app.core.config import settings
 from app.services.monday_service import MondayService
@@ -139,7 +138,7 @@ async def refresh_token(
                 detail="Token has been invalidated"
             )
 
-        user_id = verify_refresh_token(refresh_token)
+        user_id = verify_token(refresh_token, "refresh")
         if not user_id:
             response.delete_cookie("refresh_token")
             raise HTTPException(
@@ -182,7 +181,7 @@ async def refresh_token(
         return Token(
             access_token=access_token,
             token_type="bearer",
-            expires_at=datetime.utcnow() + access_token_expires,
+            expires_at=datetime.now() + access_token_expires,
             refresh_token=new_refresh_token
         )
     except HTTPException as he:
@@ -198,7 +197,7 @@ async def logout(
     response: Response,
     refresh_token: Optional[str] = Cookie(None),
     redis: RedisService = Depends(get_redis_service),
-    current_user: User = Depends(get_current_user)
+    current_user: UserResponse = Depends(get_current_user)
 ):
     """
     Logout user and invalidate refresh token
@@ -219,8 +218,8 @@ async def logout(
             detail=str(e)
         )
 
-@router.get("/me", response_model=User)
-async def get_current_user_info(current_user: User = Depends(get_current_user)):
+@router.get("/me", response_model=UserResponse)
+async def get_current_user_info(current_user: UserResponse = Depends(get_current_user)):
     """
     Get current user information
     """

@@ -5,17 +5,33 @@ import os
 class Settings(BaseSettings):
     # Application Settings
     APP_NAME: str = "Dev Team Manager"
+    PROJECT_DESCRIPTION: str = "A comprehensive team management system"
     APP_VERSION: str = "1.0.0"
     DEBUG: bool = False
-    ENVIRONMENT: str = "development"
+    ENVIRONMENT: str = os.getenv("ENVIRONMENT")
+    
+    # Monday.com Settings
+    MONDAY_API_KEY: str
+    MONDAY_API_URL: str = "https://api.monday.com/v2"
+    MONDAY_BOARD_IDS: str = '["default_board_id"]'  # JSON string of board IDs
+    MONDAY_DEFAULT_BOARD_ID: str = "default_board_id"
+    MONDAY_RATE_LIMIT: int = 30  # API rate limit per minute
+    
+    # Slack Settings
+    SLACK_BOT_TOKEN: str
+    SLACK_DEFAULT_CHANNEL: str = "general"
+    SLACK_TEAM_CHANNEL: str = "team"
+    SLACK_PROJECT_CHANNEL: str = "project"
+    SLACK_ALERTS_CHANNEL: str = "alerts"
+    SLACK_REPORTS_CHANNEL: str = "reports"
+    SLACK_ANNOUNCEMENTS_CHANNEL: str = "announcements"
+    SLACK_TEAM_LEADS_CHANNEL: str = "#team-leads"
+    SLACK_NOTIFICATION_LEVELS: str = "INFO,WARNING,ERROR"
     
     # API Keys and Security
-    MONDAY_API_KEY: str
-    SLACK_BOT_TOKEN: str
     OPENAI_API_KEY: str
     SECRET_KEY: str
-    ALGORITHM: str = "HS256"
-    
+    ALGORITHM: str = os.getenv("ALGORITHM")
     # Security Settings
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 30
     REFRESH_TOKEN_EXPIRE_DAYS: int = 7
@@ -23,21 +39,14 @@ class Settings(BaseSettings):
     FAILED_LOGIN_ATTEMPTS: int = 5
     LOCKOUT_DURATION_MINUTES: int = 15
     PASSWORD_RESET_TOKEN_EXPIRE_MINUTES: int = 15
+    MAX_LOGIN_ATTEMPTS: int = 5  # Added for auth endpoint
+    LOGIN_TIMEOUT_MINUTES: int = 15  # Added for auth endpoint
     
     # API URLs and Endpoints
     API_V1_PREFIX: str = "/api/v1"
-    MONDAY_API_URL: str = "https://api.monday.com/v2"
     DOCS_URL: str = "/docs"
     REDOC_URL: str = "/redoc"
 
-    # Slack Settings
-    SLACK_DEFAULT_CHANNEL: str = "general"
-    SLACK_TEAM_CHANNEL: str = "team"
-    SLACK_PROJECT_CHANNEL: str = "project"
-    SLACK_ALERTS_CHANNEL: str = "alerts"
-    SLACK_REPORTS_CHANNEL: str = "reports"
-    SLACK_ANNOUNCEMENTS_CHANNEL: str = "announcements"
-    
     # CORS Settings
     ALLOWED_ORIGINS: List[str] = ["http://localhost:5173"]
     ALLOWED_METHODS: List[str] = ["*"]
@@ -54,7 +63,7 @@ class Settings(BaseSettings):
     DB_CONNECT_RETRIES: int = 3
     
     # Redis Settings (for caching and rate limiting)
-    REDIS_URL: str = "redis://localhost:6379/0"
+    REDIS_URL: str = os.getenv("REDIS_URL")
     REDIS_MAX_CONNECTIONS: int = 10
     REDIS_TIMEOUT: int = 30
     REDIS_RETRY_ON_TIMEOUT: bool = True
@@ -70,14 +79,14 @@ class Settings(BaseSettings):
     SESSION_EXPIRE_MINUTES: int = 60
     
     # OpenAI Settings
-    OPENAI_ASSISTANT_MODEL: str = "gpt-4-turbo-preview"
+    OPENAI_ASSISTANT_MODEL: str = "gpt-4o"
     OPENAI_MAX_TOKENS: int = 4000
-    OPENAI_TEMPERATURE: float = 0.7
+    OPENAI_TEMPERATURE: float = 0.5
 
     # Scheduler Settings
     SCHEDULER_TIMEZONE: str = "UTC"
     DAILY_UPDATE_TIME: str = "09:00"
-    SPRINT_REMINDER_DAY: str = "MONDAY"
+    SPRINT_REMINDER_DAY: str = "FRIDAY"
     TASK_UPDATE_INTERVAL: int = 4  # hours
     SCHEDULER_MAX_INSTANCES: int = 3
     SCHEDULER_MISFIRE_GRACE_TIME: int = 60  # seconds
@@ -89,8 +98,8 @@ class Settings(BaseSettings):
     
     # Sprint Settings
     DEFAULT_SPRINT_DURATION: int = 14  # days
-    MAX_SPRINT_STORY_POINTS: int = 100
-    MIN_SPRINT_STORY_POINTS: int = 20
+    MAX_SPRINT_STORY_POINTS: int = 10
+    MIN_SPRINT_STORY_POINTS: int = 1
     
     # Logging Settings
     LOG_LEVEL: str = "INFO"
@@ -102,9 +111,7 @@ class Settings(BaseSettings):
     ENABLE_METRICS: bool = True
     METRICS_UPDATE_INTERVAL: int = 60  # seconds
     PROMETHEUS_ENABLED: bool = True
-    SENTRY_DSN: Optional[str] = None
-    TRACE_SAMPLE_RATE: float = 0.1
-    
+
     # Email Settings (for notifications)
     SMTP_HOST: Optional[str] = None
     SMTP_PORT: Optional[int] = None
@@ -119,14 +126,12 @@ class Settings(BaseSettings):
     UPLOAD_PATH: str = "uploads"
     
     # Feature Flags
-    FEATURES: Dict[str, bool] = {
-        "enable_ai_suggestions": True,
-        "enable_auto_assignments": True,
-        "enable_metrics_dashboard": True,
-        "enable_slack_notifications": True,
-        "enable_email_notifications": False,
-    }
-
+    ENABLE_AI_SUGGESTIONS: bool = True
+    ENABLE_AUTO_ASSIGNMENTS: bool = True
+    ENABLE_METRICS_DASHBOARD: bool = True
+    ENABLE_SLACK_NOTIFICATIONS: bool = True
+    ENABLE_EMAIL_NOTIFICATIONS: bool = False
+    
     class Config:
         env_file = ".env"
         case_sensitive = True

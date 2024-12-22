@@ -6,7 +6,8 @@ from datetime import datetime
 from enum import Enum
 import logging
 
-from app.models.notification import Notification, NotificationCreate, NotificationResponse
+from app.models.database.notification import DBNotification
+from app.models.notification import NotificationCreate
 from app.services.websocket_service import notification_manager
 
 logger = logging.getLogger(__name__)
@@ -35,7 +36,7 @@ class NotificationService:
         self,
         notification: NotificationCreate,
         send_websocket: bool = True
-    ) -> Notification:
+    ) -> DBNotification:
         """
         Create a new notification and optionally send it through WebSocket.
         
@@ -44,12 +45,11 @@ class NotificationService:
             send_websocket: Whether to send real-time notification via WebSocket
         """
         try:
-            db_notification = Notification(
+            db_notification = DBNotification(
                 user_id=notification.user_id,
                 title=notification.title,
                 message=notification.message,
                 type=notification.type,
-                created_at=datetime.utcnow()
             )
             
             self.db.add(db_notification)
@@ -73,7 +73,7 @@ class NotificationService:
         offset: int = 0,
         unread_only: bool = False,
         notification_type: Optional[NotificationType] = None
-    ) -> List[Notification]:
+    ) -> List[DBNotification]:
         """
         Get user notifications with filtering options.
         
@@ -85,15 +85,15 @@ class NotificationService:
             notification_type: Filter by notification type
         """
         try:
-            query = select(Notification).where(Notification.user_id == user_id)
+            query = select(DBNotification).where(DBNotification.user_id == user_id)
             
             if unread_only:
-                query = query.where(Notification.is_read == False)
+                query = query.where(DBNotification.is_read == False)
                 
             if notification_type:
-                query = query.where(Notification.type == notification_type)
-                
-            query = query.order_by(Notification.created_at.desc())
+                query = query.where(DBNotification.type == notification_type)
+
+            query = query.order_by(DBNotification.created_at.desc())
             query = query.offset(offset).limit(limit)
             
             result = await self.db.execute(query)
@@ -107,13 +107,13 @@ class NotificationService:
         self,
         notification_id: str,
         user_id: str
-    ) -> Notification:
+    ) -> DBNotification:
         """Mark a notification as read."""
         try:
             query = (
-                select(Notification)
-                .where(Notification.id == notification_id)
-                .where(Notification.user_id == user_id)
+                select(DBNotification)
+                .where(DBNotification.id == notification_id)
+                .where(DBNotification.user_id == user_id)
             )
             
             result = await self.db.execute(query)
@@ -139,9 +139,9 @@ class NotificationService:
         """Mark all user's notifications as read."""
         try:
             query = (
-                update(Notification)
-                .where(Notification.user_id == user_id)
-                .where(Notification.is_read == False)
+                update(DBNotification)
+                .where(DBNotification.user_id == user_id)
+                .where(DBNotification.is_read == False)
                 .values(is_read=True, read_at=datetime.utcnow())
             )
             
@@ -163,9 +163,9 @@ class NotificationService:
         """Delete a specific notification."""
         try:
             query = (
-                delete(Notification)
-                .where(Notification.id == notification_id)
-                .where(Notification.user_id == user_id)
+                delete(DBNotification)
+                .where(DBNotification.id == notification_id)
+                .where(DBNotification.user_id == user_id)
             )
             
             result = await self.db.execute(query)
@@ -182,9 +182,9 @@ class NotificationService:
         """Delete all read notifications for a user."""
         try:
             query = (
-                delete(Notification)
-                .where(Notification.user_id == user_id)
-                .where(Notification.is_read == True)
+                delete(DBNotification)
+                .where(DBNotification.user_id == user_id)
+                .where(DBNotification.is_read == True)
             )
             
             result = await self.db.execute(query)
@@ -201,9 +201,9 @@ class NotificationService:
         """Get count of unread notifications for a user."""
         try:
             query = (
-                select(Notification)
-                .where(Notification.user_id == user_id)
-                .where(Notification.is_read == False)
+                select(DBNotification)
+                .where(DBNotification.user_id == user_id)
+                .where(DBNotification.is_read == False)
             )
             
             result = await self.db.execute(query)
@@ -213,7 +213,7 @@ class NotificationService:
             logger.error(f"Error getting unread count: {str(e)}")
             raise
 
-    async def _send_websocket_notification(self, notification: Notification):
+    async def _send_websocket_notification(self, notification: DBNotification):
         """Send notification through WebSocket."""
         try:
             notification_data = {
